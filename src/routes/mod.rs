@@ -27,7 +27,7 @@ async fn index<B>(_req: Request<B>) -> impl IntoResponse
 where
     B: std::fmt::Debug,
 {
-    Html("<h1>Hello!</h1>")
+    Html("<h1>Peter!</h1>")
 }
 
 async fn get_css(Path(file): Path<String>) -> Result<impl IntoResponse, StatusCode> {

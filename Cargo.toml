@@ -1,0 +1,13 @@
+[package]
+name = "corrode"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+axum = { version = "0.6.12", features = ["headers"] }
+hyper = "0.14.25"
+serde = { version = "1.0.159", features = ["derive"] }
+tokio = { version = "1.27.0", features = ["macros", "rt-multi-thread", "full"] }
+tower-http = { version = "0.4.0", features = ["cors"] }

@@ -1,0 +1,209 @@
+/* Header */
+header {
+    background: var(--clr-base);
+    text-align: center;
+    position: sticky;
+    top: 0;
+    margin: 0 0 2em 0;
+    z-index: 1000;
+    width: 100%;
+}
+
+.header-wrapper {
+    width: min(var(--max-width), 95vw);
+    margin: 0 auto;
+    position: relative;
+    border-bottom: 5px solid var(--clr-yellow);
+    box-shadow: 0 1rem 1rem -1rem rgba(0, 0, 0, 0.25),
+        0 0.3rem 0.3rem -0.3rem rgba(0, 0, 0, 0.5);
+}
+
+.nav-toggle {
+    display: none;
+}
+
+.nav-toggle-label {
+    display: none;
+}
+
+nav {
+    background: var(--clr-base);
+}
+
+nav ul {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: flex-start;
+    position: relative;
+    text-align: left;
+}
+
+nav li {
+    display: inline-block;
+    margin: 0 0 0.5em;
+}
+
+nav .main-link::after {
+    content: '';
+    display: block;
+    height: 3px;
+    background-color: var(--clr-yellow);
+
+    transform: scale(0, 1);
+    transition: transform ease-in-out 250ms;
+    transform-origin: left;
+}
+
+nav .main-link:hover::after {
+    transform: scale(1, 1);
+}
+
+nav .main-link > a::after {
+    all: unset;
+}
+
+nav a {
+    font-size: var(--fs-1);
+    text-decoration: none;
+    display: block;
+    padding: 0.5em 0.8em 0;
+    opacity: 1;
+    transition: opacity 75ms ease-in-out;
+}
+
+nav a:hover {
+    opacity: 0.7;
+}
+
+.menu-sub {
+    background: var(--clr-mantle);
+    border: 1px solid var(--clr-text);
+    width: 100%;
+    color: var(--clr-text);
+    padding: 2em;
+    box-shadow: var(--bs);
+    position: absolute;
+    left: 0;
+    display: flex;
+    justify-content: space-between;
+
+    opacity: 0;
+    pointer-events: none;
+    translate: 0 20px;
+    transition: all 150ms ease-in-out;
+}
+
+nav li:hover .menu-sub {
+    opacity: 1;
+    pointer-events: all;
+    translate: 0 0;
+}
+
+.menu-sub ul {
+    flex-direction: column;
+}
+
+.menu-sub li {
+    display: block;
+}
+
+.menu-sub a {
+    padding: 0;
+}
+
+.menu-sub h3 {
+    margin: 2.5em 0 0.5em;
+    padding: 0;
+}
+
+.menu-sub h3:first-of-type {
+    margin-top: 0;
+}
+
+@media (max-width: 600px) {
+    nav {
+        position: absolute;
+        top: 2em;
+        left: 0;
+        width: 100%;
+        box-shadow: var(--bs);
+
+        transform: scale(1, 0);
+        transform-origin: top;
+        transition: transform 300ms ease-in-out;
+    }
+
+    nav a {
+        /* Hide links until nav is revealed */
+        opacity: 0;
+    }
+
+    .nav-toggle:checked ~ nav {
+        transform: scale(1, 1);
+    }
+
+    .nav-toggle:checked ~ nav a {
+        opacity: 1;
+        transition: opacity 200ms ease-in-out 100ms;
+    }
+
+    .nav-toggle-label {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        margin: 1em;
+    }
+
+    .nav-toggle-label span {
+        display: block;
+        margin: 0.1rem;
+        height: 0.2rem;
+        width: 1.5rem;
+        background: var(--clr-yellow);
+        border-radius: 100vmax;
+
+        rotate: 0deg;
+        translate: 0;
+        transition: translate 250ms ease-in-out, rotate 250ms ease-in-out;
+    }
+
+    .nav-toggle:checked ~ .nav-toggle-label #hamburger1 {
+        rotate: 45deg;
+        translate: 0 6px;
+        transition: translate 250ms ease-in-out, rotate 250ms ease-in-out;
+    }
+
+    .nav-toggle:checked ~ .nav-toggle-label #hamburger2 {
+        rotate: 45deg;
+        translate: 0;
+        transition: translate 250ms ease-in-out, rotate 250ms ease-in-out;
+    }
+
+    .nav-toggle:checked ~ .nav-toggle-label #hamburger3 {
+        rotate: 135deg;
+        translate: 0 -6px;
+        transition: translate 250ms ease-in-out, rotate 250ms ease-in-out;
+    }
+
+    nav ul {
+        flex-direction: column;
+        position: static;
+        margin: 1em 0 0 0;
+    }
+
+    nav li {
+        position: static;
+    }
+
+    .menu-sub {
+        top: 0;
+        flex-direction: column;
+        background: var(--clr-mantle);
+        z-index: 10;
+        min-height: 100%;
+
+        translate: 50% 0;
+    }
+}

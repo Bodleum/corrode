@@ -1,0 +1,36 @@
+/* Footer */
+footer {
+    background: #181926;
+    color: var(--clr-yellow);
+    text-align: center;
+    font-size: var(--fs-1);
+    padding: 1em 0;
+    margin: auto 0 0;
+}
+
+footer a {
+    color: inherit;
+    text-decoration: none;
+    font-weight: var(--fw-bold);
+}
+
+footer a:hover,
+.social-list_link:hover {
+    opacity: 0.7;
+}
+
+.social-list {
+    list-style: none;
+    display: flex;
+    justify-content: center;
+    margin: 2em 0 0;
+    padding: 0;
+}
+
+.social-list_item {
+    margin: 0 0.5em;
+}
+
+.social-list_link {
+    padding: 0.5em;
+}

@@ -1,3 +1,5 @@
+mod http_error;
+
 use crate::middleware::wrap_page;
 use axum::{
     body::Body,
@@ -20,6 +22,7 @@ pub fn create_routes() -> Router<(), Body> {
         .route("/", get(index))
         .layer(axum::middleware::from_fn(wrap_page))
         .route("/css/:file", get(get_css))
+        .fallback(http_error::http_error_page)
         .layer(cors)
 }
 

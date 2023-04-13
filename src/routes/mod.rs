@@ -1,4 +1,6 @@
-mod http_error;
+mod get_page;
+
+use std::path::PathBuf;
 
 use crate::middleware::wrap_page;
 use axum::{
@@ -11,6 +13,8 @@ use axum::{
 };
 use tower_http::cors::{Any, CorsLayer};
 
+use get_page::get_page;
+
 #[derive(Clone)]
 pub struct PageHeader(pub String);
 
@@ -19,18 +23,20 @@ pub fn create_routes() -> Router<(), Body> {
         .allow_methods([Method::GET, Method::POST])
         .allow_origin(Any);
     Router::new()
-        .route("/", get(index))
+        .route("/", get(get_page_wrapper_main_page))
+        .route("/*path", get(get_page_wrapper))
         .layer(axum::middleware::from_fn(wrap_page))
         .route("/css/:file", get(get_css))
-        .fallback(http_error::http_error_page)
+        .fallback(serve_404)
         .layer(cors)
 }
 
-async fn index<B>(_req: Request<B>) -> impl IntoResponse
-where
-    B: std::fmt::Debug,
-{
-    Html("<h1>Peter!</h1>")
+async fn get_page_wrapper_main_page<B>(_req: Request<B>) -> impl IntoResponse {
+    get_page("").await
+}
+
+async fn get_page_wrapper(Path(path): Path<String>) -> impl IntoResponse {
+    get_page(path).await
 }
 
 async fn get_css(Path(file): Path<String>) -> Result<impl IntoResponse, StatusCode> {
@@ -41,4 +47,14 @@ async fn get_css(Path(file): Path<String>) -> Result<impl IntoResponse, StatusCo
         .header("content-type", "text/css; charset=utf-8")
         .body(css)
         .unwrap())
+}
+
+async fn serve_404<B: std::fmt::Debug>(req: Request<B>) -> impl IntoResponse {
+    crate::web::error_resp(
+        Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(req.into_body())
+            .unwrap(),
+    )
+    .await
 }

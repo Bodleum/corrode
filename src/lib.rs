@@ -1,5 +1,6 @@
 mod middleware;
 mod routes;
+mod web;
 
 use routes::create_routes;
 

@@ -8,29 +8,34 @@ use serde::Serialize;
 
 #[derive(Debug, Template, Serialize)]
 #[template(path = "page.html")]
-struct Page {
-    title: String,
-    content: String,
+struct Page<'a> {
+    title: &'a str,
+    content: &'a str,
 }
 
-pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Result<impl IntoResponse, StatusCode> {
+pub async fn wrap_page<B: std::fmt::Debug>(
+    req: Request<B>,
+    next: Next<B>,
+) -> Result<impl IntoResponse, StatusCode> {
     // Get response
     let response = next.run(req).await;
 
     // Extract body
     let (_parts, body) = response.into_parts();
-    let content = String::from_utf8(
-        hyper::body::to_bytes(body)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-            .to_vec(),
-    )
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // String::from("Error in converting response body into bytes."),
+    let bytes = hyper::body::to_bytes(body)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .to_vec();
+
+    // String::from("Error converting request body to string: not valid UTF-8."),
+    let content = String::from_utf8(bytes).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let page = Page {
-        title: String::from("Page Title"),
-        content,
+        title: "Page Title",
+        content: content.as_str(),
     };
 
-    Ok(Html(page.render().unwrap()))
+    Ok(Html(page.render().unwrap()).into_response())
 }

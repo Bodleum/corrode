@@ -66,6 +66,12 @@ pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Response {
         content: content.as_str(),
     };
 
+    // Set to html type
+    parts.headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static(mime::TEXT_HTML_UTF_8.as_ref()),
+    );
+
     Response::from_parts(parts, page.render().unwrap()).into_response()
 }
 

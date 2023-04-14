@@ -21,7 +21,11 @@ pub async fn wrap_page<B: std::fmt::Debug>(
     let response = next.run(req).await;
 
     // Extract body
-    let (_parts, body) = response.into_parts();
+    let (parts, body) = response.into_parts();
+    // Propagate status code if not a success
+    if !parts.status.is_success() {
+        return Err(parts.status);
+    }
 
     // String::from("Error in converting response body into bytes."),
     let bytes = hyper::body::to_bytes(body)
@@ -37,5 +41,5 @@ pub async fn wrap_page<B: std::fmt::Debug>(
         content: content.as_str(),
     };
 
-    Ok(Html(page.render().unwrap()).into_response())
+    Ok(Html(page.render().unwrap()))
 }

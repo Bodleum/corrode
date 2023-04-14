@@ -1,9 +1,10 @@
 use askama::Template;
 use axum::{
-    http::{Request, StatusCode},
+    http::{HeaderValue, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use hyper::header;
 use serde::Serialize;
 
 #[derive(Debug, Template, Serialize)]
@@ -34,7 +35,7 @@ pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Response {
     // Extract body
     let (mut parts, body) = response.into_parts();
     // Remove content-length header
-    parts.headers.remove("content-length");
+    parts.headers.remove(header::CONTENT_LENGTH);
 
     // TODO: Get page metadata
 
@@ -79,10 +80,11 @@ pub async fn handle_error<B>(req: Request<B>, next: Next<B>) -> Response {
     // Extract body
     let (mut parts, body) = response.into_parts();
     // Remove content-length header
-    parts.headers.remove("content-length");
-    parts
-        .headers
-        .append("content-type", "text/html; charset=utf-8".parse().unwrap());
+    parts.headers.remove(header::CONTENT_LENGTH);
+    parts.headers.append(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static(mime::TEXT_HTML_UTF_8.as_ref()),
+    );
 
     let error_page = ErrorPage {
         status_code: format!("{}", parts.status),

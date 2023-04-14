@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use axum::{http::StatusCode, response::IntoResponse};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 
 use super::{serve_dir::serve_dir, serve_page::serve_page};
 
@@ -23,18 +26,26 @@ impl std::fmt::Display for TypeInFS {
     }
 }
 
-pub async fn get_page<P>(path: P) -> Result<impl IntoResponse, StatusCode>
+pub async fn get_page<P>(path: P) -> Response
 where
     P: AsRef<Path>,
 {
+    let not_found_response = (
+        StatusCode::NOT_FOUND,
+        "Invalid path, not a file or directroy.",
+    )
+        .into_response();
     // Get path and type in file-system
-    let path = get_fs_path(path).await.ok_or(StatusCode::NOT_FOUND)?;
+    let path = match get_fs_path(path).await {
+        Some(s) => s,
+        None => return not_found_response,
+    };
     let ft = get_type(&path).await;
 
     match ft {
-        TypeInFS::File => Ok(serve_page(&path).await),
-        TypeInFS::Dir => Ok(serve_dir(&path).await),
-        TypeInFS::NotFound => Err(StatusCode::NOT_FOUND),
+        TypeInFS::File => serve_page(&path).await.into_response(),
+        TypeInFS::Dir => serve_dir(&path).await.into_response(),
+        TypeInFS::NotFound => not_found_response,
     }
 }
 

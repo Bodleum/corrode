@@ -2,7 +2,7 @@ mod get_page;
 mod serve_dir;
 mod serve_page;
 
-use crate::middleware::wrap_page;
+use crate::middleware::{handle_error, wrap_page};
 use axum::{
     body::Body,
     extract::Path,
@@ -26,8 +26,8 @@ pub fn create_routes() -> Router<(), Body> {
         .route("/", get(get_page_wrapper_main_page))
         .route("/*path", get(get_page_wrapper))
         .layer(axum::middleware::from_fn(wrap_page))
+        .layer(axum::middleware::from_fn(handle_error))
         .route("/css/:file", get(get_css))
-        .fallback(serve_404)
         .layer(cors)
 }
 
@@ -39,22 +39,16 @@ async fn get_page_wrapper(Path(path): Path<String>) -> impl IntoResponse {
     get_page(path).await
 }
 
-async fn get_css(Path(file): Path<String>) -> Result<impl IntoResponse, StatusCode> {
-    let css = tokio::fs::read_to_string(format!("assets/{file}"))
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    Ok(Response::builder()
-        .header("content-type", "text/css; charset=utf-8")
-        .body(css)
-        .unwrap())
-}
+async fn get_css(Path(file): Path<String>) -> Response {
+    let css = match tokio::fs::read_to_string(format!("assets/{file}")).await {
+        Ok(ok) => ok,
+        Err(_) => return (StatusCode::NOT_FOUND, "File not found.").into_response(),
+    };
 
-async fn serve_404<B: std::fmt::Debug>(req: Request<B>) -> impl IntoResponse {
-    crate::web::error_resp(
-        Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(req.into_body())
-            .unwrap(),
+    (
+        StatusCode::OK,
+        [("content-type", "text/css; charset=utf-8")],
+        css,
     )
-    .await
+        .into_response()
 }

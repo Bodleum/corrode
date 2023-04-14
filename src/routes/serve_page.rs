@@ -1,11 +1,11 @@
 use std::path::Path;
 
-use axum::response::Html;
+use axum::response::{Html, IntoResponse, Response};
 
-pub async fn serve_page<P>(path: &P) -> Html<String>
+pub async fn serve_page<P>(path: &P) -> Response
 where
     P: AsRef<Path>,
 {
     let content = tokio::fs::read_to_string(path).await.unwrap();
-    Html(content)
+    Html(content).into_response()
 }

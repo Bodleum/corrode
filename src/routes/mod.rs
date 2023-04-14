@@ -1,4 +1,5 @@
 mod get_page;
+mod serve_dir;
 mod serve_page;
 
 use crate::middleware::wrap_page;

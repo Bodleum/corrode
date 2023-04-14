@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use axum::response::{Html, IntoResponse};
+use axum::response::Html;
 
-pub async fn serve_page<P>(path: P) -> impl IntoResponse
+pub async fn serve_page<P>(path: &P) -> Html<String>
 where
     P: AsRef<Path>,
 {

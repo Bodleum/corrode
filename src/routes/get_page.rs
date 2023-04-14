@@ -1,9 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use axum::{
-    http::StatusCode,
-    response::{Html, IntoResponse},
-};
+use axum::{http::StatusCode, response::IntoResponse};
+
+use super::{serve_dir::serve_dir, serve_page::serve_page};
 
 // const CONTENT_ROOT: &'static str = "/home/bodleum/archive/Dev/Rust/corrode/content";
 const CONTENT_ROOT: &'static str = "content";
@@ -28,32 +27,15 @@ pub async fn get_page<P>(path: P) -> Result<impl IntoResponse, StatusCode>
 where
     P: AsRef<Path>,
 {
-    // Content to be served
-    let mut content: String = String::new();
-
     // Get path and type in file-system
-    let path = get_fs_path(path).await.ok_or(StatusCode::BAD_REQUEST)?;
+    let path = get_fs_path(path).await.ok_or(StatusCode::NOT_FOUND)?;
     let ft = get_type(&path).await;
 
-    // match ft {
-    //     TypeInFS::File => {
-    //         path.set_extension("md");
-    //         return serve_page(path).await;
-    //     }
-    //     _ => {}
-    // }
-
-    content.push_str(
-        format!(
-            " ### Info
-Path: {} ({})",
-            path.display(),
-            ft
-        )
-        .as_str(),
-    );
-
-    Ok(Html(content))
+    match ft {
+        TypeInFS::File => Ok(serve_page(&path).await),
+        TypeInFS::Dir => Ok(serve_dir(&path).await),
+        TypeInFS::NotFound => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 async fn get_fs_path<P>(path: P) -> Option<PathBuf>

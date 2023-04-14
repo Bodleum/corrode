@@ -15,11 +15,11 @@ struct Page<'a> {
 
 #[derive(Debug, Template, Serialize)]
 #[template(path = "error_page.html")]
-struct ErrorPage<'a, T>
+struct ErrorPage<T>
 where
     T: std::fmt::Debug,
 {
-    status_code: &'a str,
+    status_code: String,
     body: T,
 }
 
@@ -36,7 +36,9 @@ pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Response {
     // Remove content-length header
     parts.headers.remove("content-length");
 
-    // String::from("Error in converting response body into bytes."),
+    // TODO: Get page metadata
+
+    // Get body
     let bytes = match hyper::body::to_bytes(body).await {
         Ok(ok) => ok.to_vec(),
         Err(_) => {
@@ -47,8 +49,6 @@ pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Response {
                 .into_response();
         }
     };
-
-    // String::from("Error converting request body to string: not valid UTF-8."),
     let content = match String::from_utf8(bytes) {
         Ok(ok) => ok,
         Err(_) => {
@@ -83,10 +83,9 @@ pub async fn handle_error<B>(req: Request<B>, next: Next<B>) -> Response {
     parts
         .headers
         .append("content-type", "text/html; charset=utf-8".parse().unwrap());
-    let status = parts.status;
 
     let error_page = ErrorPage {
-        status_code: status.as_str(),
+        status_code: format!("{}", parts.status),
         body,
     };
 

@@ -2,7 +2,7 @@ use askama::Template;
 use axum::{
     http::{Request, StatusCode},
     middleware::Next,
-    response::{Html, IntoResponse},
+    response::{IntoResponse, Response},
 };
 use serde::Serialize;
 
@@ -21,7 +21,9 @@ pub async fn wrap_page<B: std::fmt::Debug>(
     let response = next.run(req).await;
 
     // Extract body
-    let (parts, body) = response.into_parts();
+    let (mut parts, body) = response.into_parts();
+    // Remove content-length header
+    parts.headers.remove("content-length");
     // Propagate status code if not a success
     if !parts.status.is_success() {
         return Err(parts.status);
@@ -41,5 +43,5 @@ pub async fn wrap_page<B: std::fmt::Debug>(
         content: content.as_str(),
     };
 
-    Ok(Html(page.render().unwrap()))
+    Ok(Response::from_parts(parts, page.render().unwrap()))
 }

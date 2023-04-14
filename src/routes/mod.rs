@@ -1,13 +1,12 @@
 mod get_page;
-
-use std::path::PathBuf;
+mod serve_page;
 
 use crate::middleware::wrap_page;
 use axum::{
     body::Body,
     extract::Path,
     http::{Method, Request, StatusCode},
-    response::{Html, IntoResponse, Response},
+    response::{IntoResponse, Response},
     routing::get,
     Router,
 };

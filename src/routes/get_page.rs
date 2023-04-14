@@ -43,8 +43,8 @@ where
     let ft = get_type(&path).await;
 
     match ft {
-        TypeInFS::File => serve_page(&path).await.into_response(),
-        TypeInFS::Dir => serve_dir(&path).await.into_response(),
+        TypeInFS::File => serve_page(&path).await,
+        TypeInFS::Dir => serve_dir(&path).await,
         TypeInFS::NotFound => not_found_response,
     }
 }

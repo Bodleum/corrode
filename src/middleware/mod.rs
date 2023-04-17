@@ -83,14 +83,36 @@ pub async fn handle_error<B>(req: Request<B>, next: Next<B>) -> Response {
         return response;
     }
 
-    // Extract body
-    let (mut parts, body) = response.into_parts();
+    // Extract body and headers
+    let (mut parts, box_body) = response.into_parts();
     // Remove content-length header
     parts.headers.remove(header::CONTENT_LENGTH);
     parts.headers.append(
         header::CONTENT_TYPE,
         HeaderValue::from_static(mime::TEXT_HTML_UTF_8.as_ref()),
     );
+
+    // Get body
+    let bytes = match hyper::body::to_bytes(box_body).await {
+        Ok(ok) => ok.to_vec(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Error in converting response body into bytes.",
+            )
+                .into_response();
+        }
+    };
+    let body = match String::from_utf8(bytes) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Error converting request body to stirng; not valid UTF-8.",
+            )
+                .into_response();
+        }
+    };
 
     let error_page = ErrorPage {
         status_code: format!("{}", parts.status),

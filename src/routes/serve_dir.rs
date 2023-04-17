@@ -5,7 +5,7 @@ use std::{
 
 use axum::{
     http::{HeaderValue, StatusCode},
-    response::{Html, IntoResponse, Response},
+    response::{IntoResponse, Response},
 };
 use hyper::header;
 
@@ -55,9 +55,9 @@ where
 Path: {} (Directory)
 
 ### Contents
-{}",
+{:#?}",
             path.as_ref().display(),
-            links,
+            contents,
         ),
     )
         .into_response()
@@ -73,9 +73,13 @@ where
         .as_ref()
         .read_dir()?
         .collect::<T>()?
-        .iter()
         // Keep only if extension is 'md'
-        .filter_map(|entry| (entry.path().extension()? == "md").then_some(entry.path()))
+        .iter()
+        .filter_map(|entry| {
+            // TODO: FIX THIS!!!
+            ((entry.path().extension()? == "md") || (entry.file_type().ok()?.is_dir()))
+                .then_some(entry.path())
+        })
         .collect::<HashSet<PathBuf>>())
 }
 
@@ -98,9 +102,8 @@ where
         .ok_or("Could not read filename: not valid Unicode!")?
         // Split at '.'
         .iter()
-        .map(|str| str.split_once('.'))
-        .collect::<Option<HashSet<_>>>()
-        .ok_or("Could not get basename of file: no '.' found!")?
+        .map(|str| str.split_once('.').unwrap_or((str, "")))
+        .collect::<HashSet<_>>()
         // Keep only first part
         .iter()
         .map(|i| i.0)

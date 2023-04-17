@@ -1,14 +1,14 @@
 use std::path::{Path, PathBuf};
 
 use axum::{
+    extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 
-use super::{serve_dir::serve_dir, serve_page::serve_page};
+use crate::AppState;
 
-// const CONTENT_ROOT: &'static str = "/home/bodleum/archive/Dev/Rust/corrode/content";
-const CONTENT_ROOT: &'static str = "content";
+use super::{serve_dir::serve_dir, serve_page::serve_page};
 
 enum TypeInFS {
     File,
@@ -26,7 +26,7 @@ impl std::fmt::Display for TypeInFS {
     }
 }
 
-pub async fn get_page<P>(path: P) -> Response
+pub async fn get_page<P>(state: &AppState, path: P) -> Response
 where
     P: AsRef<Path>,
 {
@@ -35,8 +35,9 @@ where
         "Invalid path, not a file or directroy.",
     )
         .into_response();
+
     // Get path and type in file-system
-    let path = match get_fs_path(path).await {
+    let path = match get_fs_path(&state, path).await {
         Some(s) => s,
         None => return not_found_response,
     };
@@ -49,11 +50,11 @@ where
     }
 }
 
-async fn get_fs_path<P>(path: P) -> Option<PathBuf>
+async fn get_fs_path<P>(state: &AppState, path: P) -> Option<PathBuf>
 where
     P: AsRef<Path>,
 {
-    let mut fs_path = PathBuf::from(CONTENT_ROOT);
+    let mut fs_path = PathBuf::from(&state.content_root);
     fs_path.push(path);
 
     if fs_path.is_dir() {

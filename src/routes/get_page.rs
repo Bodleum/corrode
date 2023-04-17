@@ -6,9 +6,9 @@ use crate::AppState;
 
 use super::{serve_dir::serve_dir, serve_page::serve_page};
 
-pub async fn get_page<P>(state: &AppState, path: P) -> Response
+pub async fn get_page<P>(state: &AppState, path: &P) -> Response
 where
-    P: AsRef<Path>,
+    P: AsRef<Path> + ?Sized,
 {
     let response = serve_page(&state, &path).await;
 

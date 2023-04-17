@@ -13,4 +13,5 @@ hyper = "0.14.25"
 mime = "0.3.17"
 serde = { version = "1.0.159", features = ["derive"] }
 tokio = { version = "1.27.0", features = ["macros", "rt-multi-thread", "full"] }
+tokio-util = { version = "0.7.7", features = ["io"] }
 tower-http = { version = "0.4.0", features = ["cors"] }

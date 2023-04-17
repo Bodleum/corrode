@@ -1,13 +1,13 @@
-use std::string::FromUtf8Error;
-
 use askama::Template;
 use axum::{
-    http::{response::Parts, HeaderValue, Request, StatusCode},
+    http::{response::Parts, HeaderValue, Request},
     middleware::Next,
     response::{IntoResponse, Response},
 };
 use hyper::header;
 use serde::Serialize;
+
+use crate::error::MiddlewareError;
 
 #[derive(Debug, Template, Serialize)]
 #[template(path = "page.html")]
@@ -24,38 +24,6 @@ where
 {
     status_code: String,
     body: T,
-}
-
-pub enum MiddlewareError {
-    FromUtf8Error,
-    AxumError(axum::Error),
-}
-
-impl IntoResponse for MiddlewareError {
-    fn into_response(self) -> Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            match self {
-                MiddlewareError::FromUtf8Error => {
-                    String::from("Error converting request body to string; not valid UTF-8.")
-                }
-                MiddlewareError::AxumError(err) => format!("Error: {}", err),
-            },
-        )
-            .into_response()
-    }
-}
-
-impl From<FromUtf8Error> for MiddlewareError {
-    fn from(_: FromUtf8Error) -> Self {
-        MiddlewareError::FromUtf8Error
-    }
-}
-
-impl From<axum::Error> for MiddlewareError {
-    fn from(err: axum::Error) -> Self {
-        MiddlewareError::AxumError(err)
-    }
 }
 
 async fn dismantle_response(resp: Response) -> Result<(Parts, String), MiddlewareError> {

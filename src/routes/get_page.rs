@@ -1,6 +1,6 @@
-use std::path::Path;
+use std::{io::ErrorKind, path::Path};
 
-use axum::{http::StatusCode, response::Response};
+use axum::response::Response;
 
 use crate::{error::IOError, AppState};
 
@@ -10,11 +10,14 @@ pub async fn get_page<P>(state: &AppState, path: &P) -> Result<Response, IOError
 where
     P: AsRef<Path> + ?Sized,
 {
-    let response = serve_page(&state, &path).await?;
+    let response = match serve_page(&state, &path).await {
+        Ok(ok) => return Ok(ok),
+        Err(err) => err,
+    };
 
     // Not found as a file, maybe is a directory?
-    if response.status() != StatusCode::NOT_FOUND {
-        return Ok(response);
+    if response.0.kind() != ErrorKind::NotFound {
+        return Err(response);
     }
 
     serve_dir(&state, &path).await

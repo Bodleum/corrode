@@ -33,6 +33,7 @@ pub fn create_routes() -> Router<AppState, Body> {
         .layer(axum::middleware::from_fn(handle_error))
         .route("/font/:file", get(get_font))
         .route("/css/:file", get(get_css))
+        .route("/favicon.ico", get(|| async { StatusCode::NOT_FOUND }))
         .layer(cors)
 }
 

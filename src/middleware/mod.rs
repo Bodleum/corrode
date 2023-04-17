@@ -1,6 +1,8 @@
+use std::string::FromUtf8Error;
+
 use askama::Template;
 use axum::{
-    http::{HeaderValue, Request, StatusCode},
+    http::{response::Parts, HeaderValue, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -24,46 +26,63 @@ where
     body: T,
 }
 
-pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Response {
+pub enum MiddlewareError {
+    FromUtf8Error,
+    AxumError(axum::Error),
+}
+
+impl IntoResponse for MiddlewareError {
+    fn into_response(self) -> Response {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            match self {
+                MiddlewareError::FromUtf8Error => {
+                    String::from("Error converting request body to string; not valid UTF-8.")
+                }
+                MiddlewareError::AxumError(err) => format!("Error: {}", err),
+            },
+        )
+            .into_response()
+    }
+}
+
+impl From<FromUtf8Error> for MiddlewareError {
+    fn from(_: FromUtf8Error) -> Self {
+        MiddlewareError::FromUtf8Error
+    }
+}
+
+impl From<axum::Error> for MiddlewareError {
+    fn from(err: axum::Error) -> Self {
+        MiddlewareError::AxumError(err)
+    }
+}
+
+async fn dismantle_response(resp: Response) -> Result<(Parts, String), MiddlewareError> {
+    // Extract body and headers
+    let (parts, box_body) = resp.into_parts();
+    // Get body
+    let bytes = hyper::body::to_bytes(box_body).await?.to_vec();
+    let body = String::from_utf8(bytes)?;
+    Ok((parts, body))
+}
+
+pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Result<Response, MiddlewareError> {
     // Get response
     let response = next.run(req).await;
     // If not a success, don't wrap
     if !response.status().is_success() {
-        return response;
+        return Ok(response);
     }
 
-    // Extract body
-    let (mut parts, body) = response.into_parts();
+    let (mut parts, body) = dismantle_response(response).await?;
     // Remove content-length header
     parts.headers.remove(header::CONTENT_LENGTH);
 
     // TODO: Get page metadata
-
-    // Get body
-    let bytes = match hyper::body::to_bytes(body).await {
-        Ok(ok) => ok.to_vec(),
-        Err(_) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Error in converting response body into bytes.",
-            )
-                .into_response();
-        }
-    };
-    let content = match String::from_utf8(bytes) {
-        Ok(ok) => ok,
-        Err(_) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Error converting request body to stirng; not valid UTF-8.",
-            )
-                .into_response();
-        }
-    };
-
     let page = Page {
         title: "Page Title",
-        content: content.as_str(),
+        content: body.as_str(),
     };
 
     // Set to html type
@@ -72,19 +91,18 @@ pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Response {
         HeaderValue::from_static(mime::TEXT_HTML_UTF_8.as_ref()),
     );
 
-    Response::from_parts(parts, page.render().unwrap()).into_response()
+    Ok(Response::from_parts(parts, page.render().unwrap()).into_response())
 }
 
-pub async fn handle_error<B>(req: Request<B>, next: Next<B>) -> Response {
+pub async fn handle_error<B>(req: Request<B>, next: Next<B>) -> Result<Response, MiddlewareError> {
     // Get response
     let response = next.run(req).await;
     // // If success, don't care
     if response.status().is_success() {
-        return response;
+        return Ok(response);
     }
 
-    // Extract body and headers
-    let (mut parts, box_body) = response.into_parts();
+    let (mut parts, body) = dismantle_response(response).await?;
     // Remove content-length header
     parts.headers.remove(header::CONTENT_LENGTH);
     parts.headers.append(
@@ -92,32 +110,10 @@ pub async fn handle_error<B>(req: Request<B>, next: Next<B>) -> Response {
         HeaderValue::from_static(mime::TEXT_HTML_UTF_8.as_ref()),
     );
 
-    // Get body
-    let bytes = match hyper::body::to_bytes(box_body).await {
-        Ok(ok) => ok.to_vec(),
-        Err(_) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Error in converting response body into bytes.",
-            )
-                .into_response();
-        }
-    };
-    let body = match String::from_utf8(bytes) {
-        Ok(ok) => ok,
-        Err(_) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Error converting request body to stirng; not valid UTF-8.",
-            )
-                .into_response();
-        }
-    };
-
     let error_page = ErrorPage {
         status_code: format!("{}", parts.status),
         body,
     };
 
-    Response::from_parts(parts, error_page.render().unwrap()).into_response()
+    Ok(Response::from_parts(parts, error_page.render().unwrap()).into_response())
 }

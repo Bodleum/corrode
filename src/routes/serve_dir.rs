@@ -7,24 +7,24 @@ use axum::{
 
 use tokio::fs::{self, File};
 
-use crate::AppState;
+use crate::{error::IOError, AppState};
 
-pub async fn serve_dir<P>(state: &AppState, path: &P) -> Response
+pub async fn serve_dir<P>(state: &AppState, path: &P) -> Result<Response, IOError>
 where
     P: AsRef<Path>,
 {
     let fs_path = state.content_root.join(path);
 
-    let foo = traverse(&fs_path).await.unwrap();
+    let foo = contents(&fs_path).await?;
     let placeholder_message = format!(
         "The method to show this page has not been implemented yet! {}",
         fs_path.display()
     );
 
-    (StatusCode::NOT_IMPLEMENTED, placeholder_message).into_response()
+    Ok((StatusCode::NOT_IMPLEMENTED, placeholder_message).into_response())
 }
 
-async fn traverse<P>(path: &P) -> io::Result<Vec<File>>
+async fn contents<P>(path: &P) -> io::Result<Vec<File>>
 where
     P: AsRef<Path>,
 {

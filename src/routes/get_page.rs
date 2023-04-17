@@ -2,11 +2,11 @@ use std::{io::ErrorKind, path::Path};
 
 use axum::response::Response;
 
-use crate::{error::IOError, AppState};
+use crate::{error::ServeDirError, AppState};
 
 use super::{serve_dir::serve_dir, serve_page::serve_page};
 
-pub async fn get_page<P>(state: &AppState, path: &P) -> Result<Response, IOError>
+pub async fn get_page<P>(state: &AppState, path: &P) -> Result<Response, ServeDirError>
 where
     P: AsRef<Path> + ?Sized,
 {
@@ -17,7 +17,7 @@ where
 
     // Not found as a file, maybe is a directory?
     if response.0.kind() != ErrorKind::NotFound {
-        return Err(response);
+        return Err(response.into());
     }
 
     serve_dir(&state, &path).await

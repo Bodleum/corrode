@@ -9,7 +9,7 @@ use crate::{
 use axum::{
     body::Body,
     extract::{Path, State},
-    http::{Method, Request, StatusCode},
+    http::{Method, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
     Router,

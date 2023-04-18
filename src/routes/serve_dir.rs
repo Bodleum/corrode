@@ -27,7 +27,7 @@ where
         foo.push(f);
     }
 
-    let links = format_links(&foo)
+    let links = format_links(&path, &foo)
         .change_context(DirError)
         .attach_printable(format!(
             "Error while formatting links in \"{}\".",
@@ -43,7 +43,7 @@ where
 The method to show this page has not been implemented yet!
 
 {}",
-        fs_path.display(),
+        path.as_ref().display(),
         links.join("\n"),
     );
 
@@ -82,12 +82,14 @@ where
     Ok(ret)
 }
 
-fn format_links(files: &Vec<PathBuf>) -> Result<Vec<String>, PathError> {
+fn format_links<P>(path: &P, files: &Vec<PathBuf>) -> Result<Vec<String>, PathError>
+where
+    P: AsRef<Path>,
+{
     use convert_case::{Case, Casing};
 
     let mut ret = Vec::new();
     for p in files {
-        let url_path = to_url(&p)?.display();
         let display = p
             .file_stem()
             .ok_or(PathError::FileNameError(String::from(
@@ -108,18 +110,27 @@ fn format_links(files: &Vec<PathBuf>) -> Result<Vec<String>, PathError> {
                 p.display()
             ))?
             .to_case(Case::Title);
-        ret.push(format!(" - [{}]({})", display, url_path));
+        ret.push(format!(
+            " - [{}](/{})",
+            display,
+            path.as_ref().join(to_url(&path, &p)?).display()
+        ));
     }
 
     Ok(ret)
 }
 
-fn to_url<P>(path: &P) -> Result<&Path, PathError>
+fn to_url<P, Q>(prefix: &P, path: &Q) -> Result<PathBuf, PathError>
 where
     P: AsRef<Path>,
+    Q: AsRef<Path>,
 {
+    let mut int_prefix = PathBuf::from("content");
+    int_prefix.push(prefix);
+
     path.as_ref()
-        .strip_prefix("content")
+        .strip_prefix(int_prefix)
+        .map(|p| p.to_path_buf())
         .map_err(|err| PathError::StripPrefixError(err))
         .into_report()
         .attach_printable(format!(

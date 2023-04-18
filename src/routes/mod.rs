@@ -3,6 +3,7 @@ mod serve_dir;
 mod serve_page;
 
 use crate::{
+    error::PageReport,
     middleware::{handle_error, wrap_page},
     AppState,
 };
@@ -10,7 +11,7 @@ use axum::{
     body::{Body, StreamBody},
     extract::{Path, State},
     http::{Method, StatusCode},
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     routing::get,
     Router,
 };
@@ -37,12 +38,15 @@ pub fn create_routes() -> Router<AppState, Body> {
         .layer(cors)
 }
 
-async fn get_page_wrapper_main_page(state: State<AppState>) -> impl IntoResponse {
-    get_page(&state, "").await
+async fn get_page_wrapper_main_page(state: State<AppState>) -> Result<Response, PageReport> {
+    get_page(&state, "").await.map_err(|err| err.into())
 }
 
-async fn get_page_wrapper(state: State<AppState>, Path(path): Path<String>) -> impl IntoResponse {
-    get_page(&state, &path).await
+async fn get_page_wrapper(
+    state: State<AppState>,
+    Path(path): Path<String>,
+) -> Result<Response, PageReport> {
+    get_page(&state, &path).await.map_err(|err| err.into())
 }
 
 async fn get_font(Path(font): Path<String>) -> impl IntoResponse {

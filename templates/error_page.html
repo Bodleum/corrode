@@ -11,6 +11,16 @@
       * {
         text-align: center;
       }
+
+      body {
+        display: flex;
+        align-items: center;
+      }
+
+      .breakdown {
+        max-width: min(80rem, 95vw);
+        text-align: left;
+      }
     </style>
   </head>
 
@@ -23,8 +33,8 @@
       <a href="/">main site?</a>
     </p>
 
-    <h3>Response:</h3>
-    <p>{{ "{:#?}"|format(body) }}</p>
+    <h3>Breakdown:</h3>
+    <p class="breakdown">{{ body|safe }}</p>
 
     <footer></footer>
   </body>

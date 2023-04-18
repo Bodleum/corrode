@@ -1,135 +1,122 @@
-use std::io;
+use std::{error::Error, fmt};
 
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
+use axum::response::IntoResponse;
+use error_stack::Report;
+use hyper::StatusCode;
 
 // TODO: Use error_stack
 
-pub struct IOError(pub io::Error);
-impl From<io::Error> for IOError {
-    fn from(value: io::Error) -> Self {
-        Self(value)
+#[derive(Debug)]
+pub struct IOError(pub std::io::Error);
+impl fmt::Display for IOError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("IO Error! {}", self.0))
     }
 }
-impl IntoResponse for IOError {
-    fn into_response(self) -> Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Error reading file: {}", self.0),
-        )
-            .into_response()
-    }
-}
-
-pub struct FromUTF8Error(std::string::FromUtf8Error);
-impl From<std::string::FromUtf8Error> for FromUTF8Error {
-    fn from(value: std::string::FromUtf8Error) -> Self {
-        Self(value)
-    }
-}
-impl IntoResponse for FromUTF8Error {
-    fn into_response(self) -> Response {
-        (StatusCode::INTERNAL_SERVER_ERROR, "Error: Not valid UTF-8.").into_response()
+impl Error for IOError {}
+impl IOError {
+    pub fn kind(&self) -> std::io::ErrorKind {
+        self.0.kind()
     }
 }
 
+#[derive(Debug)]
+pub struct FromUTF8Error(pub std::string::FromUtf8Error);
+impl fmt::Display for FromUTF8Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("UTF-8 Error: {}", self.0))
+    }
+}
+impl Error for FromUTF8Error {}
+
+#[derive(Debug)]
 pub enum PathError {
     StripPrefixError(std::path::StripPrefixError),
-    Custom(String),
+    FileNameError(String),
+    UnicodeError(String),
 }
-impl From<std::path::StripPrefixError> for PathError {
-    fn from(value: std::path::StripPrefixError) -> Self {
-        Self::StripPrefixError(value)
+impl fmt::Display for PathError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match &self {
+            Self::StripPrefixError(err) => err.to_string(),
+            Self::FileNameError(err) => err.clone(),
+            Self::UnicodeError(err) => err.clone(),
+        };
+        f.write_fmt(format_args!("Path Error! {}", s))
     }
 }
-impl IntoResponse for PathError {
-    fn into_response(self) -> Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            match self {
-                Self::StripPrefixError(err) => format!("Could not strip prefix: {}", err),
-                Self::Custom(msg) => msg,
-            },
-        )
-            .into_response()
-    }
-}
+impl Error for PathError {}
 
+#[derive(Debug)]
+pub struct DirError;
+impl fmt::Display for DirError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Directory error!")
+    }
+}
+impl Error for DirError {}
+
+#[derive(Debug)]
+pub struct PageError;
+impl fmt::Display for PageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Error while getting current page!")
+    }
+}
+impl Error for PageError {}
+
+#[derive(Debug)]
 pub struct AxumError(pub axum::Error);
-impl From<axum::Error> for AxumError {
-    fn from(value: axum::Error) -> Self {
+impl fmt::Display for AxumError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("Axum Error! {}", self.0))
+    }
+}
+impl Error for AxumError {}
+
+#[derive(Debug)]
+pub struct MiddlewareError;
+impl fmt::Display for MiddlewareError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Error in middleware!")
+    }
+}
+impl Error for MiddlewareError {}
+
+#[derive(Debug)]
+pub struct PageReport(pub Report<PageError>);
+impl From<Report<PageError>> for PageReport {
+    fn from(value: Report<PageError>) -> Self {
         Self(value)
     }
 }
-impl IntoResponse for AxumError {
-    fn into_response(self) -> Response {
+impl IntoResponse for PageReport {
+    fn into_response(self) -> axum::response::Response {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Error: {}", self.0),
+            ansi_to_html::convert_escaped(&format!("{:#?}", self.0))
+                .unwrap_or(format!("{}", self.0))
+                .replace("\n", "<br />\n"),
         )
             .into_response()
     }
 }
 
-pub enum MiddlewareError {
-    FromUTF8Error(FromUTF8Error),
-    AxumError(AxumError),
-}
-impl From<FromUTF8Error> for MiddlewareError {
-    fn from(value: FromUTF8Error) -> Self {
-        Self::FromUTF8Error(value)
+#[derive(Debug)]
+pub struct MiddlewareReport(pub Report<MiddlewareError>);
+impl From<Report<MiddlewareError>> for MiddlewareReport {
+    fn from(value: Report<MiddlewareError>) -> Self {
+        Self(value)
     }
 }
-impl From<std::string::FromUtf8Error> for MiddlewareError {
-    fn from(value: std::string::FromUtf8Error) -> Self {
-        FromUTF8Error(value).into()
-    }
-}
-impl From<AxumError> for MiddlewareError {
-    fn from(value: AxumError) -> Self {
-        Self::AxumError(value)
-    }
-}
-impl From<axum::Error> for MiddlewareError {
-    fn from(value: axum::Error) -> Self {
-        AxumError(value).into()
-    }
-}
-impl IntoResponse for MiddlewareError {
-    fn into_response(self) -> Response {
-        match self {
-            Self::FromUTF8Error(err) => err.into_response(),
-            Self::AxumError(err) => err.into_response(),
-        }
-    }
-}
-
-pub enum ServeDirError {
-    PathErorr(PathError),
-    IOError(IOError),
-}
-impl From<PathError> for ServeDirError {
-    fn from(value: PathError) -> Self {
-        Self::PathErorr(value)
-    }
-}
-impl From<IOError> for ServeDirError {
-    fn from(value: IOError) -> Self {
-        Self::IOError(value)
-    }
-}
-impl From<io::Error> for ServeDirError {
-    fn from(value: io::Error) -> Self {
-        IOError(value).into()
-    }
-}
-impl IntoResponse for ServeDirError {
-    fn into_response(self) -> Response {
-        match self {
-            Self::PathErorr(err) => err.into_response(),
-            Self::IOError(err) => err.into_response(),
-        }
+impl IntoResponse for MiddlewareReport {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ansi_to_html::convert_escaped(&format!("{:#?}", self.0))
+                .unwrap_or(format!("{}", self.0))
+                .replace("\n", "<br />\n"),
+        )
+            .into_response()
     }
 }

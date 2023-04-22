@@ -10,7 +10,7 @@ use serde::Serialize;
 
 use crate::error::{AxumError, FromUTF8Error, MiddlewareError, MiddlewareReport};
 
-#[derive(Debug, Template, Serialize)]
+#[derive(Template)]
 #[template(path = "page.html")]
 struct Page<'a> {
     title: &'a str,

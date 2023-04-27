@@ -1,122 +1,133 @@
-use std::{error::Error, fmt};
+mod parse;
+pub use parse::*;
 
-use axum::response::IntoResponse;
-use error_stack::Report;
-use hyper::StatusCode;
+use std::{path::StripPrefixError, string::FromUtf8Error};
 
-// TODO: Use error_stack
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use thiserror::Error;
+use tokio::io;
 
-#[derive(Debug)]
-pub struct IOError(pub std::io::Error);
-impl fmt::Display for IOError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("IO Error! {}", self.0))
+// TODO: Maybe use anyhow in the IntoResponse bits to show error better?
+
+/// Represents an error occurring while dismantling a response.
+#[derive(Debug, Error)]
+#[error("Error while dismantling response.")]
+pub enum DismantleResponseError {
+    /// Represents an error passed through from axum.
+    #[error("Error from axum.")]
+    AxumError(#[from] axum::Error),
+
+    /// Represents an error to convert into UTF-8.
+    #[error("Error while converting body bytes into string.")]
+    FromUtf8Error(#[from] FromUtf8Error),
+}
+
+/// Represents an error occurring in middleware.
+#[derive(Debug, Error)]
+#[error("Error in middleware.")]
+pub enum MiddlewareError {
+    /// Represents an error while wrapping page.
+    #[error("Error while wrapping page.")]
+    WrapPage { source: DismantleResponseError },
+
+    /// Represents an error while handling another error.
+    #[error("This error occured while handling another error.")]
+    HandleError { source: DismantleResponseError },
+}
+
+impl IntoResponse for MiddlewareError {
+    fn into_response(self) -> Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("{self:?}")).into_response()
     }
 }
-impl Error for IOError {}
-impl IOError {
-    pub fn kind(&self) -> std::io::ErrorKind {
-        self.0.kind()
+
+/// Represents an error while getting current page
+#[derive(Debug, Error)]
+#[error("Error while getting current page.")]
+pub enum PageError {
+    /// Represents an error while serving directory
+    #[error("Error while serving directory.")]
+    Dir(#[from] DirError),
+
+    /// Represents an arbitrary I.O. error.
+    #[error("I.O. error.")]
+    IO(#[from] io::Error),
+
+    /// Represents an error while reading from input.
+    #[error(r#"Could not read "{}"."#, .path)]
+    Read { path: String, source: io::Error },
+}
+
+impl IntoResponse for PageError {
+    fn into_response(self) -> Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("{self:?}")).into_response()
     }
 }
 
-#[derive(Debug)]
-pub struct FromUTF8Error(pub std::string::FromUtf8Error);
-impl fmt::Display for FromUTF8Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("UTF-8 Error: {}", self.0))
+impl PageError {
+    pub fn kind(&self) -> Option<io::ErrorKind> {
+        match self {
+            Self::IO(err) => Some(err.kind()),
+            Self::Read { path: _, source } => Some(source.kind()),
+            Self::Dir(err) => match err {
+                DirError::IO(err) => Some(err.kind()),
+                DirError::Read { path: _, source } => Some(source.kind()),
+                _ => None,
+            },
+        }
     }
 }
-impl Error for FromUTF8Error {}
 
-#[derive(Debug)]
+/// Represents an error while serving directory
+#[derive(Debug, Error)]
+#[error("Error while serving directory.")]
+pub enum DirError {
+    /// Represents an arbitrary I.O. error.
+    #[error("I.O. error.")]
+    IO(#[from] io::Error),
+
+    /// Represents an error while reading from input.
+    #[error(r#"Could not read "{}"."#, .path)]
+    Read { path: String, source: io::Error },
+
+    /// Represents an error relating to the manipulation of paths.
+    Path(#[from] PathError),
+}
+
+/// Represents an error relating to the manipulation of paths
+#[derive(Debug, Error)]
+#[error("Path error.")]
 pub enum PathError {
-    StripPrefixError(std::path::StripPrefixError),
-    FileNameError(String),
-    UnicodeError(String),
-}
-impl fmt::Display for PathError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match &self {
-            Self::StripPrefixError(err) => err.to_string(),
-            Self::FileNameError(err) => err.clone(),
-            Self::UnicodeError(err) => err.clone(),
-        };
-        f.write_fmt(format_args!("Path Error! {}", s))
-    }
-}
-impl Error for PathError {}
+    /// Represents an error stripping prefix from path.
+    #[error("Could not strip prefix.")]
+    StripPrefix(#[from] StripPrefixError), // Maybe want to include prefix and path for printing?
 
-#[derive(Debug)]
-pub struct DirError;
-impl fmt::Display for DirError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Directory error!")
-    }
-}
-impl Error for DirError {}
+    /// Represents an error getting file stem.
+    #[error(r#"Could not get file stem of "{path}"."#)]
+    FileStem { path: String },
 
-#[derive(Debug)]
-pub struct PageError;
-impl fmt::Display for PageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Error while getting current page!")
-    }
-}
-impl Error for PageError {}
-
-#[derive(Debug)]
-pub struct AxumError(pub axum::Error);
-impl fmt::Display for AxumError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("Axum Error! {}", self.0))
-    }
-}
-impl Error for AxumError {}
-
-#[derive(Debug)]
-pub struct MiddlewareError;
-impl fmt::Display for MiddlewareError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Error in middleware!")
-    }
-}
-impl Error for MiddlewareError {}
-
-#[derive(Debug)]
-pub struct PageReport(pub Report<PageError>);
-impl From<Report<PageError>> for PageReport {
-    fn from(value: Report<PageError>) -> Self {
-        Self(value)
-    }
-}
-impl IntoResponse for PageReport {
-    fn into_response(self) -> axum::response::Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            ansi_to_html::convert_escaped(&format!("{:#?}", self.0))
-                .unwrap_or(format!("{}", self.0))
-                .replace("\n", "<br />\n"),
-        )
-            .into_response()
-    }
+    /// Represents an error converting the path to unicode.
+    #[error(r#"Error while converting "{path}" to unicode."#)]
+    Unicode { path: String },
 }
 
-#[derive(Debug)]
-pub struct MiddlewareReport(pub Report<MiddlewareError>);
-impl From<Report<MiddlewareError>> for MiddlewareReport {
-    fn from(value: Report<MiddlewareError>) -> Self {
-        Self(value)
-    }
+#[derive(Debug, Error)]
+#[error("Could not parse frontmatter.")]
+pub enum FrontmatterError {
+    // Represents an error parsing
+    #[error("Could not find frontmatter.\n{0}")]
+    Parse(String),
+
+    /// Represents an error from de-serializing toml
+    #[error("Error while de-serializing toml.")]
+    TOMLError(#[from] toml::de::Error),
 }
-impl IntoResponse for MiddlewareReport {
-    fn into_response(self) -> axum::response::Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            ansi_to_html::convert_escaped(&format!("{:#?}", self.0))
-                .unwrap_or(format!("{}", self.0))
-                .replace("\n", "<br />\n"),
-        )
-            .into_response()
+
+impl<'a> From<ParseError<'a>> for FrontmatterError {
+    fn from(value: ParseError<'a>) -> Self {
+        Self::Parse(format!("{value}"))
     }
 }

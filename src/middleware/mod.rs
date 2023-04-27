@@ -4,11 +4,10 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use error_stack::{IntoReport, ResultExt};
 use hyper::header;
 use serde::Serialize;
 
-use crate::error::{AxumError, FromUTF8Error, MiddlewareError, MiddlewareReport};
+use crate::error::{DismantleResponseError, MiddlewareError};
 
 #[derive(Template)]
 #[template(path = "page.html")]
@@ -27,29 +26,17 @@ where
     body: T,
 }
 
-async fn dismantle_response(
-    resp: Response,
-) -> error_stack::Result<(Parts, String), MiddlewareError> {
+async fn dismantle_response(resp: Response) -> Result<(Parts, String), DismantleResponseError> {
     // Extract body and headers
     let (parts, box_body) = resp.into_parts();
     // Get body
-    let bytes = hyper::body::to_bytes(box_body)
-        .await
-        .map_err(|err| AxumError(err))
-        .into_report()
-        .change_context(MiddlewareError)
-        .attach_printable("Error while converting response body into bytes.")?
-        .to_vec();
-    let body = String::from_utf8(bytes)
-        .map_err(|err| FromUTF8Error(err))
-        .into_report()
-        .change_context(MiddlewareError)
-        .attach_printable("Error while converting body bytes into string.")?;
+    let bytes = hyper::body::to_bytes(box_body).await?.to_vec();
+    let body = String::from_utf8(bytes)?;
 
     Ok((parts, body))
 }
 
-pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Result<Response, MiddlewareReport> {
+pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Result<Response, MiddlewareError> {
     // Get response
     let response = next.run(req).await;
     // If not a success, don't wrap
@@ -59,7 +46,7 @@ pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Result<Response, Mi
 
     let (mut parts, body) = dismantle_response(response)
         .await
-        .attach_printable("Error while wrapping page.")?;
+        .map_err(|source| MiddlewareError::WrapPage { source })?;
     // Remove content-length header
     parts.headers.remove(header::CONTENT_LENGTH);
 
@@ -78,7 +65,7 @@ pub async fn wrap_page<B>(req: Request<B>, next: Next<B>) -> Result<Response, Mi
     Ok(Response::from_parts(parts, page.render().unwrap()).into_response())
 }
 
-pub async fn handle_error<B>(req: Request<B>, next: Next<B>) -> Result<Response, MiddlewareReport> {
+pub async fn handle_error<B>(req: Request<B>, next: Next<B>) -> Result<Response, MiddlewareError> {
     // Get response
     let response = next.run(req).await;
     // // If success, don't care
@@ -88,7 +75,7 @@ pub async fn handle_error<B>(req: Request<B>, next: Next<B>) -> Result<Response,
 
     let (mut parts, body) = dismantle_response(response)
         .await
-        .attach_printable("This error occured while handling another error.")?;
+        .map_err(|source| MiddlewareError::HandleError { source })?;
     // Remove content-length header
     parts.headers.remove(header::CONTENT_LENGTH);
     parts.headers.append(

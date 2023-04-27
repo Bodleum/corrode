@@ -1,5 +1,6 @@
-mod error;
+pub mod error;
 mod middleware;
+pub mod parsing;
 mod routes;
 mod web;
 
